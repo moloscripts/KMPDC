@@ -1,0 +1,304 @@
+#
+# This is a Shiny web application. You can run the application by clicking
+# the 'Run App' button above.
+#
+# Find out more about building applications with Shiny here:
+#
+#    http://shiny.rstudio.com/
+#
+
+library(shiny)
+library(shinydashboard)
+library(tidyverse)
+library(rsconnect)
+library(easypackages)
+library(leaflet)
+library(leaflet.providers)
+library(leaflet.extras)
+library(plotly)
+library(DT)
+library(shinyWidgets)
+library(RColorBrewer)
+theme_set(theme_minimal())
+
+waterPoint <- read.csv("Data/FlowWP_Data.csv", na.strings = '',strip.white = TRUE)
+
+waterPoint <- waterPoint %>%
+    rename(`Water Source Type` = Water.Source.Type, 
+           `Reason for Inventory` = Reason.for.Inventory, 
+           `Hand Pump Type` = Hand.Pump.Type, 
+           `Organisation` = Organisation.that.installed.the.Water.Pump, 
+           `Functionality Status` = FunctionalityStatus,
+           `Estimated Number of Users` = Estimated.Number.of.Users)
+
+
+Functionality_Status <- unique(waterPoint$`Functionality Status`)
+
+
+# Leaflet Map of Water Points ####
+waterSourcePalettes <- colorFactor(palette = c("#d92027", "#184d47","#ffcd3c","#1966B0"),
+                                   levels = c("Deep Well with Distribution","Hand dug Well fitted with pump or windlass",
+                                              "Shallow  Well fitted with hand pump","Protected Spring"))
+
+
+### Table of Estimated Yield and Number of Users per Water Source #### 
+UsersandYield <- waterPoint %>%
+    select(`Estimated Number of Users`, Yield, `Functionality Status`, `Water Source Type`, Kebele, Village, Woreda) %>%
+    group_by(`Functionality Status`, Woreda, Kebele, `Water Source Type`) %>%
+    summarise(Yield = sum(Yield),
+              Users = sum(`Estimated Number of Users`))
+
+### Type of Water Source ####
+WaterSourceAN <- waterPoint %>%
+    filter(Woreda == "Arsi Negele")
+
+WaterSourceS <- waterPoint %>%
+    filter(Woreda == "Shashemene")
+
+
+
+ggplot(waterPoint) + 
+    geom_bar(aes(x=`Water Source Type`, fill=`Water Source Type`)) + 
+    facet_grid(~Woreda) +
+    theme(legend.position = "none") + 
+    labs(x="") +
+    coord_flip() +
+    theme_minimal()
+
+
+
+### Year Commissioned ####
+WPYearCommissionedAN <- waterPoint %>%
+    select(YearCommissioned, Woreda, `Functionality Status`, `Water Source Type`) %>%
+    filter(Woreda == "Arsi Negele") %>%
+    group_by(YearCommissioned, `Water Source Type`, Woreda,`Functionality Status`) %>%
+    summarise(count = n())
+
+ggplot(WPYearCommissionedAN, aes(YearCommissioned, count)) + 
+    geom_line(aes(group_by(`Functionality Status`)))
+ 
+WPYearCommissionedS <- waterPoint %>%
+    select(YearCommissioned, Woreda, `Functionality Status`, `Water Source Type`) %>%
+    filter(Woreda == "Shashemene") %>%
+    group_by(YearCommissioned, `Water Source Type`, Woreda,`Functionality Status`) %>%
+    summarise(count = n())
+
+ui <- dashboardPage(
+    
+    dashboardHeader(
+        title = "Ethiopia WASH SDG MIS Dashboard",
+        titleWidth = 360
+    ),
+    dashboardSidebar(size = 
+                         sidebarMenu(menuItem("Water Point", tabName = "wp_data"),
+                                     menuItem("Household", tabName = "hh_data"),
+                                     menuItem("School WaSH", tabName = "sch_wash_data"),
+                                     menuItem("Health Facility WaSH", tabName = "health_facility_data")
+                         )
+    ),
+    
+    dashboardBody(
+        
+        tabItems(
+            ## Water Point Dashboard UI ####
+            
+            # WaterPoint selectInput
+            tabItem(tabName = "wp_data",
+                    fluidRow(
+                        box(width = 4, selectInput(inputId = "FunctionalityStatus", label = "Functionality Status", choices = Functionality_Status, selected = NULL)),
+                        valueBoxOutput("ArsiNegeleVB"),
+                        valueBoxOutput("ShashameneVB"),
+                    ),
+                    
+                    # WaterPoint Visualisations Layout ####
+                    
+                    ## Map fluidRow ####
+                    fluidRow(
+                        box(title = toupper("Water Sources"), width = 12, height=NULL, solidHeader = T, status = "warning",
+                            leafletOutput("wpMap"))
+                    ),
+                    
+                    # Type of Water Source fluidRow ####
+                    fluidRow(
+                        box(title = "Type of WaterSource", width = 12, height=NULL, solidHeader = T, status = "success",
+                            plotlyOutput("WaterSourceAN"))
+                        # box(title = "Type of Water Source (Shashamene)", width = 6, height=NULL, solidHeader = T, status = "success",
+                        #     plotlyOutput("WaterSourceS"))
+                        
+                    ),
+                    
+                    # Year Commissioned ####
+                    fluidRow(
+                        box(title = "Year Commissioned (Arsi Negele)", width = 6, height=NULL, solidHeader = T, status = "danger",
+                            plotlyOutput("YearCommissionedAN")),
+                        box(title = "Year Commissioned (Shashamene)", width = 6, height=NULL, solidHeader = T, status = "warning",
+                            plotlyOutput("YearCommissionedS"))
+                        
+                    ),
+                    # Yield and Users fluidRow ####
+                    fluidRow(
+                        box(title = "Estimated users and Yield Per Water Source", width = 12, height=NULL, solidHeader = T, status = "success",
+                            DTOutput("UsersYieldTable"))
+                    ),
+            ),
+            
+            ## Household UI Dashboard
+            ## Column Based Layout
+            tabItem(tabName = "hh_data",
+                    # fluidRow(
+                    #   column(width = 6,
+                    #          box(width = NULL, selectInput(inputId = "WPworeda", label = "Woreda")),
+                    #          box(width = NULL, selectInput(inputId = "WPworeda", label = "Woreda"))
+                    #          
+                    #   ),
+                    #   column(width = 6,
+                    #          box(width = NULL, selectInput(inputId = "WPworeda", label = "Woreda")),
+                    #          box(width = NULL, selectInput(inputId = "WPworeda", label = "Woreda"))
+                    #          
+                    #   )
+                    # )
+            ),
+            tabItem(tabName = "sch_wash_data",
+                    h2("School WASH visualisations come here")
+                    #Code for School WASH Visualisation
+            ),
+            tabItem(tabName = "health_facility_data",
+                    h2("Health WASH visualisations come here")
+                    #Code for Health WASH Visualisation
+            )
+        ) ## End of tabItems
+        
+        
+    )
+)
+
+server <- function(input, output, session){
+    
+    # Water Point Filter Data per Functionality Status
+    filtered_data <- reactive({
+        waterPoint %>%
+            filter(`Functionality Status` %in% input$FunctionalityStatus)
+    })
+    
+    # Water Point valueBox Output Functions ####
+    
+    ## Arsi Negele valueBox Output ####
+    output$ArsiNegeleVB <- renderValueBox({
+        AN_wp <- filter(waterPoint, `Functionality Status` %in% input$FunctionalityStatus)
+        varAN = "Arsi Negele"
+        anValue <- nrow(subset(AN_wp, Woreda == varAN))
+        valueBox(anValue, subtitle = "Arsi Negele", icon = icon("tint"), color = "green")
+    })
+    
+    ## Shashamene valueBox Output ####
+    output$ShashameneVB <- renderValueBox({
+        S_wp <- filter(waterPoint, `Functionality Status` %in% input$FunctionalityStatus)
+        varS <- "Shashemene"
+        sValue <- nrow(subset(S_wp, Woreda==varS))
+        valueBox(sValue, subtitle = "Shashamene", icon = icon("tint"), color = "red")
+    })
+    
+    
+    ## Initialise Water Source Map ####
+    output$wpMap <- renderLeaflet(
+        leaflet() %>%
+            addTiles(group = "OSM") %>%
+            addProviderTiles("Stamen.Terrain", group = "Stamen Terrain") %>%
+            addProviderTiles("OpenStreetMap.DE", group = "OSM") %>%
+            # addMarkers(~Latitude, ~Longitude) %>%
+            addLayersControl(baseGroups = c("OSM","Stamen Terrain"), position = "bottomright") %>%
+            addCircleMarkers(data = waterPoint,
+                             clusterOptions = markerClusterOptions(),
+                             radius = 5, stroke = T, fillOpacity = 1,
+                             label = ~`Water Source Type`,
+                             color = ~waterSourcePalettes(`Water Source Type`),
+                             popup = paste0("<b> Water Source: </b>", waterPoint$`Water Source Type`,
+                                            "</br>",
+                                            "<b>Kebele: </b>", waterPoint$Kebele,
+                                            "</br>",
+                                            "<b>Village: </b>", waterPoint$Village,
+                                            "</br>",
+                                            "<b>Yield: </b>", waterPoint$Yield,
+                                            "</br>",
+                                            "<b>Estimated Users: </b>", waterPoint$`Estimated Number of Users`
+                             )
+            ) %>%
+            addLegend(position = "topright", pal = waterSourcePalettes,
+                      values = c("Deep Well with Distribution","Hand dug Well fitted with pump or windlass",
+                                 "Shallow  Well fitted with hand pump","Protected Spring"))
+    )
+    
+    # Update Map based on Functionality Status
+    observe(leafletProxy("wpMap", data = filtered_data()) %>%
+                clearMarkers() %>%
+                # addMarkers() %>%
+                addCircleMarkers(radius = 5,
+                                 clusterOptions = markerClusterOptions(),
+                                 color = ~waterSourcePalettes(waterPoint$`Water Source Type`),
+                                 label = ~`Water Source Type`,
+                                 popup = ~paste0("<b> Water Source: </b>", waterPoint$`Water Source Type`,
+                                                 "</br>",
+                                                 "<b>Kebele: </b>", waterPoint$Kebele,
+                                                 "</br>",
+                                                 "<b>Village: </b>", waterPoint$Village,
+                                                 "</br>",
+                                                 "<b>Yield: </b>", waterPoint$Yield,
+                                                 "</br>",
+                                                 "<b>Estimated Users: </b>", waterPoint$`Estimated Number of Users`
+                                 )
+                )
+    )
+    
+    
+    ## Type of Water Source ####
+    output$WaterSourceAN <- renderPlotly({
+        filter(waterPoint, `Functionality Status`==input$FunctionalityStatus) %>%
+            ggplot() + 
+            geom_bar(aes(x=`Water Source Type`, fill=`Water Source Type`)) + 
+            facet_grid(~Woreda) +
+            theme(legend.position = "none", legend.title = element_blank(), axis.title.x = element_blank()) +
+            labs(x="") +
+            coord_flip() +
+            theme_minimal()
+        
+
+    })
+    
+    
+    ## Year Commissioned Arsi Negele ####
+    output$YearCommissionedAN <- renderPlotly({
+        filter(WPYearCommissionedAN, `Functionality Status`==input$FunctionalityStatus) %>%
+            ggplot(aes(YearCommissioned, count, color= `Water Source Type`, group= `Water Source Type`)) +
+            geom_line() + labs(x="") + theme_minimal() +
+            theme(legend.position = "none", legend.title = element_blank(), axis.title.x = element_blank())
+    })
+    
+    
+    ## Year Commissioned in Shashamene ####
+    output$YearCommissionedS <- renderPlotly({
+        filter(WPYearCommissionedS, `Functionality Status`==input$FunctionalityStatus) %>%
+            ggplot(aes(YearCommissioned, count, color= `Water Source Type`, group= `Water Source Type`)) +
+            geom_line() + labs(x="") + theme_minimal() +
+            theme(legend.position = "none", legend.title = element_blank())
+    })
+    
+    
+    ##  Users and Yield  DT ####
+    output$UsersYieldTable <- renderDT(
+        UsersandYield[UsersandYield$`Functionality Status`==input$FunctionalityStatus, ],
+        filter = "top", extensions = "Buttons", caption = htmltools::tags$caption(
+            style = 'caption-side: bottom; text-align: center;',
+            'Table 1: ', htmltools::em('Table of Yield and Estimated Users Per Wate Source')
+        ),
+        options = list(pageLength = 5, scrollX=T,
+                       dom = 'Bfrtip',
+                       buttons = c('copy', 'csv', 'excel', 'pdf', 'print'))
+        # UsersandYield, options = list(pageLength = 10, scrollX=T)
+    )
+    
+    
+}
+
+
+# Run the application 
+shinyApp(ui = ui, server = server)
