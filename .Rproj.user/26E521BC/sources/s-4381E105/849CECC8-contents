@@ -1,0 +1,144 @@
+library(shiny)
+library(shinydashboard)
+library(tidyverse)
+library(leaflet)
+library(leaflet.extras)
+library(shinyWidgets)
+library(plotly)
+library(ggthemes)
+library(rsconnect)
+
+# source("global.R")
+postHarvest <- read.csv("data/pH.csv", stringsAsFactors = FALSE)
+shed <- unique(sort(postHarvest$Shed))
+sold_all_cottonHarvested <- unique(postHarvest$Sold_all_the_cotton_that_you_harvested)
+
+# ui
+ui <- dashboardPage(skin = "green",
+                    dashboardHeader(title = "NWK", titleWidth = 100),
+                    dashboardSidebar(width = 150,
+                                     sidebarMenu(
+                                       menuItem("Inputs", tabName = "dashboard", icon = icon("th-list"))
+                                     )
+                    ),
+                    dashboardBody(
+                      fluidRow(column(width = 8, class = "valueBoxrow",style='padding-bottom:20px;',
+                                      fluidRow(
+                                        valueBoxOutput("average_land_acreage"),
+                                        valueBoxOutput("av_cotton_harvested"),
+                                        valueBoxOutput("remaining_cotton_expected")
+                                      ),
+                                      fluidRow(
+                                        valueBoxOutput("av_cotton_sold_to_nwk"),
+                                        valueBoxOutput("loan_amount"),
+                                        valueBoxOutput("net_pay_to_farmer")
+                                      )
+                      ),
+                      column(width = 4, 
+                             box(width = NULL,solidHeader = TRUE, height = 290,
+                                 pickerInput(inputId = "shed", label = "Select Shed", choices = shed, selected = shed, options = list(`actions-box` = TRUE),multiple = TRUE),
+                                 br(),br(),br(),br(),br(),br(),br(),
+                                 checkboxGroupInput(inputId = "soldCottonHarvested", "Farmer Sold All Cotton Harvested", choices = sold_all_cottonHarvested, selected = sold_all_cottonHarvested, inline = TRUE)
+                             ),br()
+                      )
+                      
+                      ),
+                      fluidRow(column(width = 12,
+                                      tabBox(width = 12, height = NULL, selected = "Quantity of Cotton Harvested",
+                                             tabPanel("Quantity of Cotton Harvested", plotlyOutput("quantities_harvested")),
+                                             tabPanel("Quantity of cotton sold to NWK", plotlyOutput("cotton_sold_nwk")),
+                                             tabPanel("Land Tillage", plotlyOutput("land_tillage")),
+                                             tabPanel("Assest Bought", plotlyOutput("assets_bought")))))
+
+                    )
+                    
+)
+
+# Server
+server <- function(input, output, session){
+  
+  # reactive function for and the plots
+  filtered_data <- reactive({
+    nwk %>%
+      filter(
+        Sold_all_the_cotton_that_you_harvested %in% input$soldCottonHarvested,
+        Shed %in% input$shed
+      )
+  })
+  
+  # renderValueBox for Average Acreage
+  output$average_land_acreage <- renderValueBox({
+    landSize <- filter(postHarvest,Shed %in% input$shed, Sold_all_the_cotton_that_you_harvested %in% input$soldCottonHarvested)
+    mean_land_acreage <- mean(landSize$area_HA, na.rm = TRUE) %>% round(2)
+    valueBox(mean_land_acreage, subtitle = "Average Land Acreage in Hectares")
+  })
+  
+  # renderValueBox of the Cotton Quantity Harvested
+  output$av_cotton_harvested <- renderValueBox({
+    quantity_Harvested <- filter(postHarvest, Shed %in% input$shed, Sold_all_the_cotton_that_you_harvested %in% input$soldCottonHarvested)
+    mean_cotton_harvested <- mean(quantity_Harvested$Total_Quantity_of_Cotton_Harvested_Kgs, na.rm = TRUE) %>% round(2)
+    valueBox(mean_cotton_harvested, "Average Cotton Harvested in Kg's")
+  })
+  
+  # renderValueBox of Total Cotton Expected
+  output$remaining_cotton_expected <- renderValueBox({
+    cotton_expected <- filter(postHarvest, Shed %in% input$shed, Sold_all_the_cotton_that_you_harvested %in% input$soldCottonHarvested)
+    mean_cotton_expected <- mean(cotton_expected$remaining_cotton_expected, na.rm = TRUE) %>% round(2)
+    valueBox(mean_cotton_expected, "Average Remaining Cotton Expected in Kg's")
+  })
+  
+  # renderValueBox of cotton Sold to NWK
+  output$av_cotton_sold_to_nwk <- renderValueBox({
+    cotton_soldNWK <- filter(postHarvest, Shed %in% input$shed,Sold_all_the_cotton_that_you_harvested %in% input$soldCottonHarvested)
+    mean_soldNWK <- mean(cotton_soldNWK$Kgs_sold_to_NWK, na.rm = TRUE) %>% round(2)
+    valueBox(mean_soldNWK, "Average Cotton sold to NWK")
+  })
+  
+  # renderValueBox av loan amounts
+  output$loan_amount <- renderValueBox({
+    loan_amts <- filter(postHarvest, Shed %in% input$shed, Sold_all_the_cotton_that_you_harvested %in% input$soldCottonHarvested)
+    mean_loanamt <- mean(loan_amts$Total_loan_Amount, na.rm = TRUE) %>% round(2)
+    valueBox(mean_loanamt, "Average loan Amount to Farmers")
+  })
+  
+  
+  # renderValueBox Net Payment
+  output$net_pay_to_farmer <- renderValueBox({
+    netPay <- filter(postHarvest, Shed %in% input$shed, Sold_all_the_cotton_that_you_harvested %in% input$soldCottonHarvested)
+    mean_np <- mean(netPay$Net_Payment, na.rm = TRUE) %>% round(2)
+    valueBox(mean_np, "Average Net Pay to Farmers")
+  })
+  
+  # render plot for cotton harvested per area
+  output$quantities_harvested <- renderPlotly({
+    filter(postHarvest, Shed %in% input$shed, Sold_all_the_cotton_that_you_harvested %in% input$soldCottonHarvested) %>%
+      ggplot(aes(area_HA,Total_Quantity_of_Cotton_Harvested_Kgs)) + geom_jitter(aes(label=Farmer_Name,label2=Shed), color="darkgreen") + geom_smooth(method = "loess", se = F) +theme_gdocs()
+  })
+  
+  # render plot for cotton sold to NWK
+  output$cotton_sold_nwk <- renderPlotly({
+    filter(postHarvest, Shed %in% input$shed, Sold_all_the_cotton_that_you_harvested %in% input$soldCottonHarvested) %>%
+      ggplot(aes(label=Farmer_Name,label2=Shed, label3=Sold_all_the_cotton_that_you_harvested)) + geom_point(aes(Total_Quantity_of_Cotton_Harvested_Kgs,Kgs_sold_to_NWK),color="tomato2") +theme_gdocs()
+  })
+  
+  # NEt Payment and the Size of the circles is the number of cotton Harvested
+  output$land_tillage <- renderPlotly({
+    filter(postHarvest, Shed %in% input$shed, Sold_all_the_cotton_that_you_harvested %in% input$soldCottonHarvested) %>%
+    ggplot(aes(Land_Tillage_Method,Total_Quantity_of_Cotton_Harvested_Kgs,label=Farmer_Name,label2=Shed,fill=Land_Tillage_Method)) + geom_bar(stat = "identity") + coord_flip()+theme_gdocs()
+  })
+  
+  # Assets Bought
+  output$assets_bought <- renderPlotly({
+    filter(postHarvest, Shed %in% input$shed, Sold_all_the_cotton_that_you_harvested %in% input$soldCottonHarvested) %>%
+      select(Bricks_for_a_house,Iron_sheets,Iron_sheets,Motorcycle,Vehicle,Bicycle,Ox_cart,Stock_of_food,Cattle,Other_Livestock,Radio,Cellphone,Land,Education)%>%
+      summarise_all(sum, na.rm=TRUE)%>%
+      gather(assets,count)%>%
+      arrange(desc(count))%>%
+      ggplot(aes(assets,count,fill=assets))+geom_bar(stat = "Identity")+
+      coord_flip()+labs(x="assets", y="count", fill="practice")+theme_gdocs()
+  })
+  
+
+}
+
+shinyApp(ui, server)
