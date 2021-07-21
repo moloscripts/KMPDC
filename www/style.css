@@ -1,0 +1,15 @@
+@import url('https://fonts.googleapis.com/css2?family=Roboto&display=swap');
+
+.main-header .logo {
+font-family: 'Roboto', sans-serif;
+  font-size: 18px;
+}
+
+
+.logo {
+background-color: #E9896A !important;
+}
+
+.navbar {
+  background-color: #00bfc4 !important;
+}
