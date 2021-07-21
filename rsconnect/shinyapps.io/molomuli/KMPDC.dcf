@@ -1,0 +1,14 @@
+name: KMPDC
+title: KMPDC
+username:
+account: molomuli
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 4408042
+bundleId: 4843057
+url: https://molomuli.shinyapps.io/KMPDC/
+when: 1626898104.22351
+lastSyncTime: 1626898104.22354
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: .RData|app2.R|app3.R|sandbox.R
