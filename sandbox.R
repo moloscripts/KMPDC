@@ -1,4 +1,5 @@
 
+# Libraries ####
 library(easypackages)
 libraries("shiny","shinydashboard","tidyverse","lubridate", "plotly")
 theme_set(theme_minimal())
@@ -29,7 +30,7 @@ for (col in to_factor) {
 
 # Plots ####
 
-# Count of Medical Practitioners
+## Count of Medical Practitioners ####
 medicalPractitioners %>%
   group_by(`Year Range`) %>%
   summarise(count = n()) %>%
@@ -53,8 +54,9 @@ medicalPractitioners %>%
              size=5)
 
 
-# Number of Qualifications
-medicalPractitioners %>%
+
+ ####
+MPQualificationsDF <- medicalPractitioners %>%
   group_by(`Year Range`, `Number of Qualifications`) %>%
   summarise(count = n()) %>%
   ggplot(aes(`Year Range`, count, group=`Number of Qualifications`)) +
@@ -79,11 +81,12 @@ medicalPractitioners %>%
              size=4)
 
 
-# Top Specialties in the last decade
-medicalPractitioners  %>% 
+## Top Specialties in the last decade ####
+SpecialtiesDF <- medicalPractitioners  %>% 
   count(Specialty, sort = T) %>%
-  filter(n>20) %>%
-  ggplot(aes(reorder(Specialty, n), n)) + 
+  filter(n>20)
+
+ggplot(SpecialtiesDF, aes(reorder(Specialty, n), n)) + 
   geom_col(aes(fill=Specialty)) + 
   coord_flip() + 
   labs(title = "Top Specialties of Medical Practitioners",
