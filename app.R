@@ -5,7 +5,7 @@
 # Link to the online dataset
  
 library(easypackages)
-libraries("shiny","shinydashboard","tidyverse","lubridate", "plotly")
+libraries("shiny","shinydashboard","tidyverse","lubridate", "plotly","Rcpp","shinyjs")
 theme_set(theme_minimal())
 
 town <- unique(medicalPractitioners$Town)
@@ -14,16 +14,17 @@ town <- unique(medicalPractitioners$Town)
 ui <- fluidPage(
     dashboardPage(skin = "yellow",
         dashboardHeader(
-            title = "KMPDC Medical Practitioners Analysis",
-            titleWidth = 300
+            title = "KMPDC Data Dashboard",
+            titleWidth = 250
         ),
-        dashboardSidebar(
+        dashboardSidebar(collapsed = F,
             sidebarMenu(
                 sidebarSearchForm(textId = "Search", buttonId = "searchTown",
                                   label = "Search Town")
             )
         ),
         dashboardBody(
+            shinyjs::useShinyjs(),
             fluidRow(
                 tabBox(width = 12, height = NULL, selected = "Count of Practitioners",
                        tabPanel("Count of Practitioners", plotlyOutput("practitioners_count")),
@@ -36,12 +37,18 @@ ui <- fluidPage(
 
 )
 
-# Define server logic required to draw a histogram
+
 server <- function(input, output) {
     
+    filtered_data <- reactive({
+        medicalPractitioners %>%
+            filter(Town %in% toupper(input$Search))
+    })
+    
+
     # Server Output - Count of Practitioners ####
     output$practitioners_count <- renderPlotly({
-        medicalPractitioners %>%
+        filter(medicalPractitioners, Town==toupper(input$Search)) %>%
             group_by(`Year Range`) %>%
             summarise(count = n()) %>%
             ggplot(aes(`Year Range`, count)) +
@@ -66,7 +73,7 @@ server <- function(input, output) {
     
     # Server Output - Count of Qualifications ####
     output$qualifications_count <- renderPlotly({
-        medicalPractitioners %>%
+        filter(medicalPractitioners, Town==toupper(input$Search)) %>%
             group_by(`Year Range`, `Number of Qualifications`) %>%
             summarise(count = n()) %>%
             ggplot(aes(`Year Range`, count, group=`Number of Qualifications`)) +
@@ -93,7 +100,7 @@ server <- function(input, output) {
     
     # Server Output - Top Specialties ####
     output$specialityCount <- renderPlotly({
-        medicalPractitioners  %>% 
+        filter(medicalPractitioners, Town==toupper(input$Search)) %>%
             count(Specialty, sort = T) %>%
             filter(n>20) %>%
             ggplot(aes(reorder(Specialty, n), n)) + 
